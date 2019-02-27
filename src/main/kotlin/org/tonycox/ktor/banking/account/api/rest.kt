@@ -17,6 +17,7 @@ import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.routing.get
 import io.ktor.routing.post
+import io.ktor.routing.route
 import io.ktor.routing.routing
 import io.ktor.util.pipeline.PipelineContext
 import org.koin.ktor.ext.inject
@@ -46,29 +47,31 @@ fun Application.accountModule() {
     }
     routing {
         val service: AccountService by inject()
-        get("/{userId}/balance") {
-            val projection = service.reduceEventsToBalance(extractUserId())
-            call.respond(HttpStatusCode.OK, BalanceDto(projection.amount))
-        }
-        get("/{userId}/statement") {
-            val list = service.getAllEvents(extractUserId())
-                .map { event -> event.toDto() }
-            call.respond(HttpStatusCode.OK, list)
-        }
-        post("/{userId}/deposit") {
-            val request = call.receive<DepositRequest>()
-            service.handle(request.toEvent(extractUserId()))
-            call.respond(HttpStatusCode.Accepted)
-        }
-        post("/{userId}/withdraw") {
-            val request = call.receive<WithdrawRequest>()
-            service.handle(request.toEvent(extractUserId()))
-            call.respond(HttpStatusCode.Accepted)
-        }
-        post("/{userId}/transfer") {
-            val request = call.receive<TransferRequest>()
-            service.handle(request.toEvent(extractUserId()))
-            call.respond(HttpStatusCode.Accepted)
+        route("/{userId}") {
+            get("/balance") {
+                val projection = service.reduceEventsToBalance(extractUserId())
+                call.respond(HttpStatusCode.OK, BalanceDto(projection.amount))
+            }
+            get("/statement") {
+                val list = service.getAllEvents(extractUserId())
+                    .map { event -> event.toDto() }
+                call.respond(HttpStatusCode.OK, list)
+            }
+            post("/deposit") {
+                val request = call.receive<DepositRequest>()
+                service.handle(request.toEvent(extractUserId()))
+                call.respond(HttpStatusCode.Accepted)
+            }
+            post("/withdraw") {
+                val request = call.receive<WithdrawRequest>()
+                service.handle(request.toEvent(extractUserId()))
+                call.respond(HttpStatusCode.Accepted)
+            }
+            post("/transfer") {
+                val request = call.receive<TransferRequest>()
+                service.handle(request.toEvent(extractUserId()))
+                call.respond(HttpStatusCode.Accepted)
+            }
         }
     }
 }
