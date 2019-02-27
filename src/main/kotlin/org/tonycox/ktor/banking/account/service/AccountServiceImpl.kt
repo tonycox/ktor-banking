@@ -1,23 +1,19 @@
 package org.tonycox.ktor.banking.account.service
 
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.tonycox.ktor.banking.account.toJavaDateTime
-import org.tonycox.ktor.banking.account.toJodaDate
+import org.tonycox.ktor.banking.account.repository.AccountEventDataKeeper
+import org.tonycox.ktor.banking.account.repository.AccountEventRepository
 import java.math.BigDecimal
 
-class AccountServiceImpl(private val database: Database) : AccountService {
-
-    init {
-        transaction(db = database) {
-            SchemaUtils.create(AccountEventTable)
-        }
-    }
+class AccountServiceImpl(
+    private val database: Database,
+    private val repository: AccountEventRepository
+) : AccountService {
 
     override fun reduceEventsToBalance(userId: Long): BalanceProjection {
         return transaction(db = database) {
-            val list = getAllEvents(userId)
+            val list = repository.getAllEvents(userId)
                 .map {
                     when (it.eventType) {
                         EventType.DEPOSIT, EventType.TRANSFER_IN -> BalanceProjection(it.amount)
@@ -34,15 +30,9 @@ class AccountServiceImpl(private val database: Database) : AccountService {
 
     override fun getAllEvents(userId: Long): List<AccountEvent> {
         return transaction(db = database) {
-            AccountEventDao.find { AccountEventTable.userId.eq(userId) }
+            repository.getAllEvents(userId)
                 .map {
-                    AccountEvent(
-                        it.userId,
-                        it.destinationUserId,
-                        it.amount,
-                        it.eventType,
-                        it.date.toJavaDateTime()
-                    )
+                    AccountEvent(it.userId, it.amount, it.eventType, it.date)
                 }
         }
     }
@@ -50,21 +40,15 @@ class AccountServiceImpl(private val database: Database) : AccountService {
     override fun handle(event: AccountEvent) {
         transaction(db = database) {
             validate(event)
-            AccountEventDao.new {
-                userId = event.userId
-                destinationUserId = event.destinationUserId
-                amount = event.amount
-                eventType = event.eventType
-                date = event.date.toJodaDate()
-            }
-            if (event.eventType == EventType.TRANSFER_OUT) {
-                AccountEventDao.new {
-                    userId = event.destinationUserId
-                    destinationUserId = event.userId
-                    amount = event.amount
-                    eventType = EventType.TRANSFER_IN
-                    date = event.date.toJodaDate()
-                }
+            val keeper = AccountEventDataKeeper(
+                event.userId, event.amount, event.eventType, event.date
+            )
+            repository.save(keeper)
+            if (event is TransferAccountEvent) {
+                val transKeeper = AccountEventDataKeeper(
+                    event.destinationUserId, event.amount, EventType.TRANSFER_IN, event.date
+                )
+                repository.save(transKeeper)
             }
         }
     }
@@ -81,4 +65,3 @@ class AccountServiceImpl(private val database: Database) : AccountService {
         }
     }
 }
-

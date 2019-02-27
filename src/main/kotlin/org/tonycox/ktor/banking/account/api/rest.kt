@@ -3,6 +3,7 @@ package org.tonycox.ktor.banking.account.api
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import io.ktor.application.Application
+import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.application.install
 import io.ktor.features.CallLogging
@@ -16,11 +17,9 @@ import io.ktor.response.respond
 import io.ktor.routing.get
 import io.ktor.routing.post
 import io.ktor.routing.routing
+import io.ktor.util.pipeline.PipelineContext
 import org.koin.ktor.ext.inject
-import org.tonycox.ktor.banking.account.service.AccountEvent
-import org.tonycox.ktor.banking.account.service.AccountService
-import org.tonycox.ktor.banking.account.service.EventType
-import org.tonycox.ktor.banking.account.service.ValidationException
+import org.tonycox.ktor.banking.account.service.*
 import java.time.LocalDateTime
 
 fun Application.accountModule() {
@@ -41,36 +40,36 @@ fun Application.accountModule() {
     routing {
         val service: AccountService by inject()
         get("/{userId}/balance") {
-            val userId = call.parameters["userId"] ?: throw NoSuchElementException("Parameter userId not found")
-            val projection = service.reduceEventsToBalance(userId.toLong())
+            val projection = service.reduceEventsToBalance(extractUserId())
             call.respond(HttpStatusCode.OK, BalanceDto(projection.amount))
         }
         get("/{userId}/statement") {
-            val userId = call.parameters["userId"] ?: throw NoSuchElementException("Parameter userId not found")
-            val list = service.getAllEvents(userId.toLong())
-                .map { event -> StatementDto(event.amount, event.date, event.eventType) }
+            val list = service.getAllEvents(extractUserId())
+                .map { event -> event.toDto() }
             call.respond(HttpStatusCode.OK, list)
         }
         post("/{userId}/deposit") {
             val request = call.receive<DepositRequest>()
-            val userId = call.parameters["userId"] ?: throw NoSuchElementException("Parameter userId not found")
-            service.handle(request.toEvent(userId.toLong()))
+            service.handle(request.toEvent(extractUserId()))
             call.respond(HttpStatusCode.Accepted)
         }
         post("/{userId}/withdraw") {
             val request = call.receive<WithdrawRequest>()
-            val userId = call.parameters["userId"] ?: throw NoSuchElementException("Parameter userId not found")
-            service.handle(request.toEvent(userId.toLong()))
+            service.handle(request.toEvent(extractUserId()))
             call.respond(HttpStatusCode.Accepted)
         }
         post("/{userId}/transfer") {
             val request = call.receive<TransferRequest>()
-            val userId = call.parameters["userId"] ?: throw NoSuchElementException("Parameter userId not found")
-            service.handle(request.toEvent(userId.toLong()))
+            service.handle(request.toEvent(extractUserId()))
             call.respond(HttpStatusCode.Accepted)
         }
     }
 }
+
+private fun PipelineContext<Unit, ApplicationCall>.extractUserId() =
+    call.parameters["userId"]?.toLong() ?: throw NoSuchElementException("Parameter userId not found")
+
+private fun AccountEvent.toDto() = StatementDto(this.amount, this.eventType, this.date)
 
 private fun DepositRequest.toEvent(userId: Long): AccountEvent {
     return AccountEvent(userId, amount = this.amount, eventType = EventType.DEPOSIT, date = LocalDateTime.now())
@@ -80,6 +79,6 @@ private fun WithdrawRequest.toEvent(userId: Long): AccountEvent {
     return AccountEvent(userId, amount = this.amount, eventType = EventType.WITHDRAW, date = LocalDateTime.now())
 }
 
-private fun TransferRequest.toEvent(originUserId: Long): AccountEvent {
-    return AccountEvent(originUserId, this.userId, this.amount, EventType.TRANSFER_OUT, LocalDateTime.now())
+private fun TransferRequest.toEvent(originUserId: Long): TransferAccountEvent {
+    return TransferAccountEvent(originUserId, this.amount, EventType.TRANSFER_OUT, LocalDateTime.now(), this.userId)
 }

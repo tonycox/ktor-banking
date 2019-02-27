@@ -7,7 +7,7 @@ buildscript {
         ktor_version = '1.1.3'
         koin_version = '1.0.2'
         jackson_version = "2.9.8"
-        junit_version = '5.2.0'
+        spek_version = '2.0.0'
     }
     repositories {
         jcenter()
@@ -45,14 +45,16 @@ dependencies {
     compile "org.koin:koin-ktor:$koin_version"
     compile "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jackson_version"
     /*storage*/
+    compile "org.mariadb.jdbc:mariadb-java-client:2.4.0"
+    compile "ch.vorburger.mariaDB4j:mariaDB4j:2.4.0"
     compile "org.jetbrains.exposed:exposed:0.12.2"
-    compile "com.h2database:h2:1.4.198"
     /*logging*/
     compile "ch.qos.logback:logback-classic:1.2.3"
     /*testing*/
+    testCompile "org.spekframework.spek2:spek-dsl-jvm:$spek_version"
+    testCompile "org.spekframework.spek2:spek-runner-junit5:$spek_version"
     testCompile "org.jetbrains.kotlin:kotlin-test:$kotlin_version"
-    testCompile "org.koin:koin-test:$koin_version"
-    implementation "io.rest-assured:rest-assured:3.3.0"
+    testImplementation "io.rest-assured:rest-assured:3.3.0"
 }
 
 mainClassName = 'io.ktor.server.netty.EngineMain'
