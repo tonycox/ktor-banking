@@ -4,6 +4,7 @@ import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.tonycox.ktor.banking.account.repository.AccountEventDataKeeper
 import org.tonycox.ktor.banking.account.repository.AccountEventRepository
+import org.tonycox.ktor.banking.account.repository.amountScale
 import java.math.BigDecimal
 
 class AccountServiceImpl(
@@ -57,13 +58,16 @@ class AccountServiceImpl(
     }
 
     private fun validate(event: AccountEvent) {
+        if (event.amount.scale() > amountScale) {
+            throw ValidationException("Scale of the amount is bigger then $amountScale digits after dot.")
+        }
         if (event.amount == BigDecimal.ZERO) {
-            throw ValidationException("requested amount is zero")
+            throw ValidationException("Requested amount is zero.")
         }
         if (event.eventType == EventType.TRANSFER_OUT || event.eventType == EventType.WITHDRAW) {
             val balance = reduceEventsToBalance(event.userId)
             if (balance.amount < event.amount) {
-                throw ValidationException("requested amount is less then balance")
+                throw ValidationException("Requested amount is less then balance.")
             }
         }
     }

@@ -78,6 +78,22 @@ object AccountApiSpec : Spek({
                 assertEquals(400, depositResponse)
                 assertEquals(0, events.size)
             }
+            it("doesn't handle any event with too big scale") {
+                val depositResponse = deposit(userId, BigDecimal.valueOf(0.000001)).statusCode
+                val events = service.getAllEvents(userId)
+                assertEquals(400, depositResponse)
+                assertEquals(0, events.size)
+            }
+            it("doesn't handle any event with wrong input json") {
+                val depositResponse = RestAssured.given()
+                    .contentType(ContentType.JSON)
+                    .body(TransferRequest(destinationUserId, BigDecimal.TEN))
+                    .`when`()
+                    .post("/$userId/deposit")
+                val events = service.getAllEvents(userId)
+                assertEquals(406, depositResponse.statusCode)
+                assertEquals(0, events.size)
+            }
         }
 
         context("with preset deposit event") {

@@ -8,9 +8,11 @@ import org.tonycox.ktor.banking.account.service.EventType
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
+internal const val amountScale = 2
+
 object AccountEventTable : LongIdTable("events") {
     val userId = long("user_id")
-    val amount = decimal("amount", precision = 12, scale = 2)
+    val amount = decimal("amount", precision = 12, scale = amountScale)
     val eventType = enumeration("event_type", EventType::class)
     val date = datetime("created_date")
 }

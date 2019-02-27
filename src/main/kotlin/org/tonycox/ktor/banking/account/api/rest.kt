@@ -1,6 +1,7 @@
 package org.tonycox.ktor.banking.account.api
 
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import io.ktor.application.Application
 import io.ktor.application.ApplicationCall
@@ -36,8 +37,11 @@ fun Application.accountModule() {
         }
     }
     install(StatusPages) {
-        exception<ValidationException> {
-            call.respond(HttpStatusCode.BadRequest, "Not valid operation")
+        exception<ValidationException> { exception ->
+            call.respond(HttpStatusCode.BadRequest, exception.localizedMessage)
+        }
+        exception<UnrecognizedPropertyException> {
+            call.respond(HttpStatusCode.NotAcceptable, "Input message cannot be parsed.")
         }
     }
     routing {
