@@ -5,6 +5,7 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.restassured.RestAssured
 import io.restassured.http.ContentType
+import io.restassured.response.Response
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.jetbrains.exposed.sql.Database
@@ -15,7 +16,6 @@ import org.spekframework.spek2.Spek
 import org.spekframework.spek2.style.specification.describe
 import org.tonycox.ktor.banking.account.api.*
 import org.tonycox.ktor.banking.account.repository.AccountEventDao
-import org.tonycox.ktor.banking.account.repository.AccountEventRepositoryImpl
 import org.tonycox.ktor.banking.account.repository.AccountEventTable
 import org.tonycox.ktor.banking.account.service.*
 import org.tonycox.ktor.banking.account.toJodaDate
@@ -47,81 +47,40 @@ object AccountApiSpec : Spek({
             embeddedServer.stop(0L, 0L, TimeUnit.SECONDS)
             koinContext.get<DB>(clazz = DB::class).stop()
         }
+
         context("with zero balance") {
             beforeEach {
                 init(database)
             }
             val service by memoized { koinContext.get<AccountService>(clazz = AccountService::class) }
             it("doesn't handle withdraw and transfer events") {
-                val withdrawPost = RestAssured.given()
-                    .contentType(ContentType.JSON)
-                    .body(WithdrawRequest(BigDecimal.TEN))
-                    .`when`()
-                    .post("/$userId/withdraw")
-                    .statusCode
-                val transferPost = RestAssured.given()
-                    .contentType(ContentType.JSON)
-                    .body(TransferRequest(destinationUserId, BigDecimal.TEN))
-                    .`when`()
-                    .post("/$userId/transfer")
-                    .statusCode
+                val withdrawResponse = withdraw(userId, BigDecimal.TEN).statusCode
+                val transferResponse = transfer(destinationUserId, userId, BigDecimal.TEN).statusCode
 
                 val events = service.getAllEvents(userId)
 
                 assertEquals(0, events.size)
-                assertEquals(400, withdrawPost)
-                assertEquals(400, transferPost)
+                assertEquals(400, withdrawResponse)
+                assertEquals(400, transferResponse)
             }
-        }
-
-        context("when event has nothing") {
-            beforeEach {
-                init(database)
+            it("return statements after applying common flow") {
+                deposit(userId, BigDecimal.TEN)
+                withdraw(userId, BigDecimal.valueOf(3))
+                deposit(userId, BigDecimal.valueOf(0.02))
+                transfer(destinationUserId, userId, BigDecimal.valueOf(2.2))
+                val statements: List<*> = RestAssured.get("$userId/statement")
+                    .body.`as`<List<*>>(List::class.java) as List<*>
+                assertEquals(4, statements.size)
             }
-            val service by memoized { koinContext.get<AccountService>(clazz = AccountService::class) }
-            it("doesn't handle any event") {
-                val depositPost = RestAssured.given()
-                    .contentType(ContentType.JSON)
-                    .body(DepositRequest(BigDecimal.ZERO))
-                    .`when`()
-                    .post("/$userId/deposit")
-                    .statusCode
+            it("doesn't handle any event when event has nothing") {
+                val depositResponse = deposit(userId, BigDecimal.ZERO).statusCode
                 val events = service.getAllEvents(userId)
-                assertEquals(400, depositPost)
+                assertEquals(400, depositResponse)
                 assertEquals(0, events.size)
             }
         }
 
-        context("when handle transfer event") {
-            beforeEach {
-                init(database)
-                transaction(db = database) {
-                    AccountEventDao.new {
-                        this.userId = userId
-                        this.amount = BigDecimal.TEN
-                        this.eventType = EventType.DEPOSIT
-                        this.date = LocalDateTime.now().toJodaDate()
-                    }
-                }
-            }
-            val service by memoized { koinContext.get<AccountService>(clazz = AccountService::class) }
-            it("creates another event for destination users") {
-                val transferPost = RestAssured.given()
-                    .contentType(ContentType.JSON)
-                    .body(TransferRequest(destinationUserId, BigDecimal.TEN))
-                    .`when`()
-                    .post("/$userId/transfer")
-                    .statusCode
-
-                val events = service.getAllEvents(userId)
-                assertEquals(202, transferPost)
-                assertEquals(2, events.size)
-                val destinationUserEvents = service.getAllEvents(destinationUserId)
-                assertEquals(1, destinationUserEvents.size)
-            }
-        }
-
-        context("with concurrency withdraw") {
+        context("with preset deposit event") {
             beforeEach {
                 init(database)
                 transaction(db = database) {
@@ -133,17 +92,22 @@ object AccountApiSpec : Spek({
                     }
                 }
             }
-            it("has proper balance") {
+            val service by memoized { koinContext.get<AccountService>(clazz = AccountService::class) }
+            it("creates another event for destination users when handle transfer event") {
+                val transferResponse = transfer(destinationUserId, userId, BigDecimal.TEN).statusCode
+                val events = service.getAllEvents(userId)
+                assertEquals(202, transferResponse)
+                assertEquals(2, events.size)
+                val destinationUserEvents = service.getAllEvents(destinationUserId)
+                assertEquals(1, destinationUserEvents.size)
+            }
+            it("has proper balance with concurrency withdraw") {
                 val latch = CountDownLatch(10)
-                val request = WithdrawRequest(BigDecimal.valueOf(20L))
+                val amount = BigDecimal.valueOf(20L)
 
                 (0..9).map {
                     GlobalScope.launch {
-                        RestAssured.given()
-                            .contentType(ContentType.JSON)
-                            .body(request)
-                            .`when`()
-                            .post("/$userId/withdraw")
+                        withdraw(userId, amount)
                         latch.countDown()
                     }
                 }
@@ -156,3 +120,27 @@ object AccountApiSpec : Spek({
         }
     }
 })
+
+private fun withdraw(userId: Long, amount: BigDecimal): Response {
+    return RestAssured.given()
+        .contentType(ContentType.JSON)
+        .body(WithdrawRequest(amount))
+        .`when`()
+        .post("/$userId/withdraw")
+}
+
+private fun transfer(destinationUserId: Long, userId: Long, amount: BigDecimal): Response {
+    return RestAssured.given()
+        .contentType(ContentType.JSON)
+        .body(TransferRequest(destinationUserId, amount))
+        .`when`()
+        .post("/$userId/transfer")
+}
+
+private fun deposit(id: Long, amount: BigDecimal): Response {
+    return RestAssured.given()
+        .contentType(ContentType.JSON)
+        .body(DepositRequest(amount))
+        .`when`()
+        .post("/$id/deposit")
+}

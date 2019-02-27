@@ -5,7 +5,6 @@ import org.jetbrains.exposed.dao.LongEntity
 import org.jetbrains.exposed.dao.LongEntityClass
 import org.jetbrains.exposed.dao.LongIdTable
 import org.tonycox.ktor.banking.account.service.EventType
-import org.tonycox.ktor.banking.account.toJodaDate
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
