@@ -4,6 +4,10 @@ import java.time.LocalDateTime
 
 private const val milliToNanoConst = 1000000
 
+/**
+ * As Kotlin.exposed supports only joda time for now,
+ * this function converts joda.time.DateTime to java.time.LocalDateTime
+ */
 fun org.joda.time.DateTime.toJavaDateTime(): LocalDateTime {
     return java.time.LocalDateTime.of(
         this.year,
@@ -16,6 +20,10 @@ fun org.joda.time.DateTime.toJavaDateTime(): LocalDateTime {
     )
 }
 
+/**
+ * As Kotlin.exposed supports only joda time for now,
+ * this function converts java.time.LocalDateTime to joda.time.DateTime.
+ */
 fun LocalDateTime.toJodaDate(): org.joda.time.DateTime {
     return org.joda.time.LocalDateTime(
         this.year,

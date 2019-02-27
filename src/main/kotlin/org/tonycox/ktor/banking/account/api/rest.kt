@@ -22,6 +22,9 @@ import org.koin.ktor.ext.inject
 import org.tonycox.ktor.banking.account.service.*
 import java.time.LocalDateTime
 
+/**
+ * Module for creating account related routes and application features in ktor environment.
+ */
 fun Application.accountModule() {
     install(DefaultHeaders)
     install(CallLogging)

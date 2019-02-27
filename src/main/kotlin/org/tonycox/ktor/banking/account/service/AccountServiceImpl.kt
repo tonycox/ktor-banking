@@ -30,7 +30,7 @@ class AccountServiceImpl(
 
     override fun getAllEvents(userId: Long): List<AccountEvent> {
         return transaction(db = database) {
-            repository.getAllEvents(userId)
+            return@transaction repository.getAllEvents(userId)
                 .map {
                     AccountEvent(it.userId, it.amount, it.eventType, it.date)
                 }
@@ -41,12 +41,15 @@ class AccountServiceImpl(
         transaction(db = database) {
             validate(event)
             val keeper = AccountEventDataKeeper(
-                event.userId, event.amount, event.eventType, event.date
+                userId = event.userId, amount = event.amount, eventType = event.eventType, date = event.date
             )
             repository.save(keeper)
             if (event is TransferAccountEvent) {
                 val transKeeper = AccountEventDataKeeper(
-                    event.destinationUserId, event.amount, EventType.TRANSFER_IN, event.date
+                    userId = event.destinationUserId,
+                    amount = event.amount,
+                    eventType = EventType.TRANSFER_IN,
+                    date = event.date
                 )
                 repository.save(transKeeper)
             }

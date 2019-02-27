@@ -12,7 +12,7 @@ class AccountEventRepositoryImpl : AccountEventRepository {
     }
 
     override fun save(event: AccountEventDataKeeper): AccountEventDataKeeper {
-        return AccountEventDao.new {
+        return AccountEventDao.new(event.id) {
             userId = event.userId
             amount = event.amount
             eventType = event.eventType
@@ -21,6 +21,12 @@ class AccountEventRepositoryImpl : AccountEventRepository {
     }
 
     private fun AccountEventDao.toKeeper(): AccountEventDataKeeper {
-        return AccountEventDataKeeper(this.userId, this.amount, this.eventType, this.date.toJavaDateTime())
+        return AccountEventDataKeeper(
+            this.id.value,
+            this.userId,
+            this.amount,
+            this.eventType,
+            this.date.toJavaDateTime()
+        )
     }
 }

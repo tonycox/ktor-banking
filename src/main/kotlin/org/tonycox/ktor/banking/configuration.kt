@@ -12,6 +12,9 @@ import org.tonycox.ktor.banking.account.repository.AccountEventTable
 import org.tonycox.ktor.banking.account.service.AccountService
 import org.tonycox.ktor.banking.account.service.AccountServiceImpl
 
+/**
+ * Defines beans for Koin DI.
+ */
 val dependencies = module {
     single<AccountEventRepository> { AccountEventRepositoryImpl() }
     single<AccountService> { AccountServiceImpl(get(), get()) }

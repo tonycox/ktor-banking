@@ -26,6 +26,7 @@ class AccountEventDao(id: EntityID<Long>) : LongEntity(id) {
 }
 
 data class AccountEventDataKeeper(
+    val id: Long? = null,
     val userId: Long,
     val amount: BigDecimal,
     val eventType: EventType,
